@@ -19,6 +19,7 @@
 
 /* File Authors:
  *   Erik Osterman <eosterman@interactivepath.com>
+ *   Mikhail Mazursky <ash2kk AT gmail>
  *
  * Thanks to the MogileFS mailing list and the creator of the MediaWiki 
  * MogileFS client.
@@ -41,7 +42,7 @@ class MogileFS {
     protected $class;
     protected $trackers;
     protected $socket;
-    protected $requestTimeout;
+    protected $connectTimeout;
     protected $putTimeout;
     protected $getTimeout;
     protected $debug;
@@ -50,8 +51,8 @@ class MogileFS {
         $this->setDomain($domain);
         $this->setClass($class);
         $this->setHosts($trackers);
-        $this->setRequestTimeout(10);
-        $this->setPutTimeout(4);
+        $this->setConnectTimeout(3);
+        $this->setPutTimeout(10);
         $this->setGetTimeout(10);
         $this->setDebug(0);
     }
@@ -64,15 +65,15 @@ class MogileFS {
         return $this->debug = $level;
     }
 
-    public function getRequestTimeout() {
-        return $this->requestTimeout;
+    public function getConnectTimeout() {
+        return $this->connectTimeout;
     }
 
-    public function setRequestTimeout($timeout) {
+    public function setConnectTimeout($timeout) {
         if ($timeout > 0)
-            return $this->requestTimeout = $timeout;
+            return $this->connectTimeout = $timeout;
         else
-            throw new Exception(get_class($this) . "::setRequestTimeout expects a positive integer");
+            throw new Exception(get_class($this) . "::setConnectTimeout expects a positive integer");
     }
 
     public function getPutTimeout() {
@@ -144,7 +145,7 @@ class MogileFS {
 
             $errno = null;
             $errstr = null;
-            $this->socket = fsockopen($parts['host'], $parts['port'], $errno, $errstr, $this->requestTimeout);
+            $this->socket = fsockopen($parts['host'], $parts['port'], $errno, $errstr, $this->connectTimeout);
             if ($this->socket)
                 break;
         }
@@ -277,7 +278,7 @@ class MogileFS {
             $contents = '';
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_VERBOSE, ($this->debug > 0 ? 1 : 0));
-            curl_setopt($ch, CURLOPT_TIMEOUT, $this->requestTimeout);
+            curl_setopt($ch, CURLOPT_TIMEOUT, $this->getTimeout);
             curl_setopt($ch, CURLOPT_URL, $path);
             curl_setopt($ch, CURLOPT_FAILONERROR, true);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -324,8 +325,8 @@ class MogileFS {
         curl_setopt($ch, CURLOPT_VERBOSE, ($this->debug > 0 ? 1 : 0));
         curl_setopt($ch, CURLOPT_INFILE, $fh);
         curl_setopt($ch, CURLOPT_INFILESIZE, $length);
-        curl_setopt($ch, CURLOPT_TIMEOUT, $this->requestTimeout);
-        curl_setopt($ch, CURLOPT_PUT, $this->putTimeout);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $this->putTimeout);
+        curl_setopt($ch, CURLOPT_PUT, true);
         curl_setopt($ch, CURLOPT_URL, $uri);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, Array('Expect: '));
