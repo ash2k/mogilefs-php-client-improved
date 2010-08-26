@@ -56,7 +56,7 @@ class MogileFS {
     public function __construct($domain, $class, $trackers) {
         $this->setDomain($domain);
         $this->setClass($class);
-        $this->setHosts($trackers);
+        $this->setTrackers($trackers);
         $this->setConnectTimeout(3);
         $this->setPutTimeout(10);
         $this->setGetTimeout(10);
@@ -68,7 +68,7 @@ class MogileFS {
     }
 
     public function setDebug($debug) {
-        return $this->_debug = (bool) $debug;
+        $this->_debug = (bool) $debug;
     }
 
     public function getConnectTimeout() {
@@ -77,7 +77,7 @@ class MogileFS {
 
     public function setConnectTimeout($timeout) {
         if ($timeout > 0)
-            return $this->_connectTimeout = $timeout;
+            $this->_connectTimeout = $timeout;
         else
             throw new Exception(get_class($this) . '::setConnectTimeout expects a positive integer');
     }
@@ -88,7 +88,7 @@ class MogileFS {
 
     public function setPutTimeout($timeout) {
         if ($timeout > 0)
-            return $this->_putTimeout = $timeout;
+            $this->_putTimeout = $timeout;
         else
             throw new Exception(get_class($this) . '::setPutTimeout expects a positive integer');
     }
@@ -99,16 +99,16 @@ class MogileFS {
 
     public function setGetTimeout($timeout) {
         if ($timeout > 0)
-            return $this->_getTimeout = $timeout;
+            $this->_getTimeout = $timeout;
         else
             throw new Exception(get_class($this) . '::setGetTimeout expects a positive integer');
     }
 
-    public function getHosts() {
+    public function getTrackers() {
         return $this->_trackers;
     }
 
-    public function setHosts($trackers) {
+    public function setTrackers($trackers) {
         if (is_scalar($trackers))
             $this->_trackers = Array($trackers);
         elseif (is_array($trackers))
@@ -123,7 +123,7 @@ class MogileFS {
 
     public function setDomain($domain) {
         if (is_scalar($domain))
-            return $this->_domain = $domain;
+            $this->_domain = $domain;
         else
             throw new Exception(get_class($this) . '::setDomain unrecognized domain argument');
     }
@@ -134,7 +134,7 @@ class MogileFS {
 
     public function setClass($class) {
         if (is_scalar($class))
-            return $this->_class = $class;
+            $this->_class = $class;
         else
             throw new Exception(get_class($this) . '::setClass unrecognized class argument');
     }
@@ -229,7 +229,10 @@ class MogileFS {
             $this->doRequest(self::CMD_GET_PATHS, Array('key' => $key));
             return true;
         } catch (Exception $e) {
-            return false;
+            if ($e->getCode() == self::ERR_UNKNOWN_KEY) {
+                return false;
+            }
+            throw $e;
         }
     }
 
@@ -248,7 +251,6 @@ class MogileFS {
         if ($key === null)
             throw new Exception(get_class($this) . '::delete key cannot be null');
         $this->doRequest(self::CMD_DELETE, Array('key' => $key));
-        return true;
     }
 
     // Rename a file
@@ -258,7 +260,6 @@ class MogileFS {
         elseif ($to === null)
             throw new Exception(get_class($this) . '::rename to key cannot be null');
         $this->doRequest(self::CMD_RENAME, Array('from_key' => $from, 'to_key' => $to));
-        return true;
     }
 
     // Rename a file
@@ -339,11 +340,6 @@ class MogileFS {
 
         $location = $this->doRequest(self::CMD_CREATE_OPEN, Array('key' => $key));
         $uri = $location['path'];
-        $parts = parse_url($uri);
-        $host = $parts['host'];
-        $port = $parts['port'];
-        $path = $parts['path'];
-
         $ch = curl_init($uri);
         if ($ch === false) {
             fclose($fh);
@@ -378,8 +374,6 @@ class MogileFS {
             'fid' => $location['fid'],
             'path' => urldecode($uri)
         ));
-
-        return true;
     }
 
     public function set($key, $value) {
@@ -396,7 +390,7 @@ class MogileFS {
             fclose($fh);
             throw new Exception(get_class($this) . '::set rewind failed');
         }
-        return $this->setResource($key, $fh, strlen($value));
+        $this->setResource($key, $fh, strlen($value));
     }
 
     public function setFile($key, $filename) {
@@ -405,7 +399,7 @@ class MogileFS {
         $fh = fopen($filename, 'r');
         if ($fh === false)
             throw new Exception(get_class($this) . "::setFile failed to open path {$filename}");
-        return $this->setResource($key, $fh, filesize($filename));
+        $this->setResource($key, $fh, filesize($filename));
     }
 
 }
