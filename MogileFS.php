@@ -26,17 +26,23 @@
  */
 
 class MogileFS {
-    const DELETE = 'DELETE';
-    const GET_DOMAINS = 'GET_DOMAINS';
-    const GET_PATHS = 'GET_PATHS';
-    const RENAME = 'RENAME';
-    const LIST_KEYS = 'LIST_KEYS';
-    const CREATE_OPEN = 'CREATE_OPEN';
-    const CREATE_CLOSE = 'CREATE_CLOSE';
+    const CMD_DELETE = 'DELETE';
+    const CMD_GET_DOMAINS = 'GET_DOMAINS';
+    const CMD_GET_PATHS = 'GET_PATHS';
+    const CMD_RENAME = 'RENAME';
+    const CMD_LIST_KEYS = 'LIST_KEYS';
+    const CMD_CREATE_OPEN = 'CREATE_OPEN';
+    const CMD_CREATE_CLOSE = 'CREATE_CLOSE';
 
-    const SUCCESS = 'OK';         // Tracker success code
-    const ERROR = 'ERR';          // Tracker error code
-    const DEFAULT_PORT = 7001;    // Tracker port
+    const RES_SUCCESS = 'OK';         // Tracker success code
+    const RES_ERROR = 'ERR';          // Tracker error code
+    
+    const ERR_OTHER = 1000;
+    const ERR_UNKNOWN_KEY = 1001;
+    const ERR_EMPTY_FILE = 1002;
+    const ERR_NONE_MATCH = 1003;
+
+    const DEFAULT_PORT = 7001;        // Tracker port
 
     protected $_domain;
     protected $_class;
@@ -157,7 +163,7 @@ class MogileFS {
     }
 
     // Send a request to mogilefsd and parse the result.
-    protected function doRequest($cmd, $args = Array()) {
+    protected function doRequest($cmd, Array $args = Array()) {
         try {
             $args['domain'] = $this->_domain;
             $args['class'] = $this->_class;
@@ -174,25 +180,26 @@ class MogileFS {
             if ($line === false)
                 throw new Exception(get_class($this) . '::doRequest read failed');
 
-            //print "[$line]\n";
             $words = explode(' ', $line);
-            if ($words[0] == self::SUCCESS)
+            if ($words[0] == self::RES_SUCCESS) {
                 parse_str(trim($words[1]), $result);
-            else {
-                if (!isset($words[1]))
-                    $words[1] = null;
-                switch ($words[1]) {
-                    case 'unknown_key':
-                        throw new Exception(get_class($this) . "::doRequest unknown_key {$args['key']}");
-
-                    case 'empty_file':
-                        throw new Exception(get_class($this) . "::doRequest empty_file {$args['key']}");
-
-                    default:
-                        throw new Exception(get_class($this) . '::doRequest ' . trim(urldecode($line)));
-                }
+                return $result;
             }
-            return $result;
+            if (!isset($words[1]))
+                $words[1] = null;
+            switch ($words[1]) {
+                case 'unknown_key':
+                    throw new Exception(get_class($this) . "::doRequest unknown_key {$args['key']}", self::ERR_UNKNOWN_KEY);
+
+                case 'empty_file':
+                    throw new Exception(get_class($this) . "::doRequest empty_file {$args['key']}", self::ERR_EMPTY_FILE);
+
+                case 'none_match':
+                    throw new Exception(get_class($this) . "::doRequest none_match {$args['key']}", self::ERR_NONE_MATCH);
+
+                default:
+                    throw new Exception(get_class($this) . '::doRequest ' . trim(urldecode($line)), self::ERR_OTHER);
+            }
         } catch (Exception $e) {
             // Clean up
             if (isset($socket))
@@ -204,7 +211,7 @@ class MogileFS {
 
     // Return a list of domains
     public function getDomains() {
-        $res = $this->doRequest(self::GET_DOMAINS);
+        $res = $this->doRequest(self::CMD_GET_DOMAINS);
 
         $domains = Array();
         for ($i = 1; $i <= $res['domains']; $i++) {
@@ -222,7 +229,7 @@ class MogileFS {
             throw new Exception(get_class($this) . '::exists key cannot be null');
 
         try {
-            $this->doRequest(self::GET_PATHS, Array('key' => $key));
+            $this->doRequest(self::CMD_GET_PATHS, Array('key' => $key));
             return true;
         } catch (Exception $e) {
             return false;
@@ -234,7 +241,7 @@ class MogileFS {
         if ($key === null)
             throw new Exception(get_class($this) . '::getPaths key cannot be null');
 
-        $result = $this->doRequest(self::GET_PATHS, Array('key' => $key));
+        $result = $this->doRequest(self::CMD_GET_PATHS, Array('key' => $key));
         unset($result['paths']);
         return $result;
     }
@@ -243,7 +250,7 @@ class MogileFS {
     public function delete($key) {
         if ($key === null)
             throw new Exception(get_class($this) . '::delete key cannot be null');
-        $this->doRequest(self::DELETE, Array('key' => $key));
+        $this->doRequest(self::CMD_DELETE, Array('key' => $key));
         return true;
     }
 
@@ -253,20 +260,20 @@ class MogileFS {
             throw new Exception(get_class($this) . '::rename from key cannot be null');
         elseif ($to === null)
             throw new Exception(get_class($this) . '::rename to key cannot be null');
-        $this->doRequest(self::RENAME, Array('from_key' => $from, 'to_key' => $to));
+        $this->doRequest(self::CMD_RENAME, Array('from_key' => $from, 'to_key' => $to));
         return true;
     }
 
     // Rename a file
     public function listKeys($prefix = null, $lastKey = null, $limit = null) {
         try {
-            return $this->doRequest(self::LIST_KEYS, Array(
+            return $this->doRequest(self::CMD_LIST_KEYS, Array(
                 'prefix' => $prefix,
                 'after' => $lastKey,
                 'limit' => $limit
             ));
         } catch (Exception $e) {
-            if (strstr($e->getMessage(), 'ERR none_match'))
+            if ($e->getCode() == self::ERR_NONE_MATCH)
                 return Array();
             else
                 throw $e;
@@ -318,7 +325,7 @@ class MogileFS {
         if ($key === null)
             throw new Exception(get_class($this) . '::setResource key cannot be null');
 
-        $location = $this->doRequest(self::CREATE_OPEN, Array('key' => $key));
+        $location = $this->doRequest(self::CMD_CREATE_OPEN, Array('key' => $key));
         $uri = $location['path'];
         $parts = parse_url($uri);
         $host = $parts['host'];
@@ -342,7 +349,7 @@ class MogileFS {
             throw new Exception(get_class($this) . "::set {$error}");
         }
         curl_close($ch);
-        $this->doRequest(self::CREATE_CLOSE, Array(
+        $this->doRequest(self::CMD_CREATE_CLOSE, Array(
             'key' => $key,
             'devid' => $location['devid'],
             'fid' => $location['fid'],
