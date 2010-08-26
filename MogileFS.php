@@ -36,7 +36,7 @@ class MogileFS {
 
     const RES_SUCCESS = 'OK';         // Tracker success code
     const RES_ERROR = 'ERR';          // Tracker error code
-    
+
     const ERR_OTHER = 1000;
     const ERR_UNKNOWN_KEY = 1001;
     const ERR_EMPTY_FILE = 1002;
@@ -164,48 +164,45 @@ class MogileFS {
 
     // Send a request to mogilefsd and parse the result.
     protected function doRequest($cmd, Array $args = Array()) {
-        try {
-            $args['domain'] = $this->_domain;
-            $args['class'] = $this->_class;
-            $params = '';
-            foreach ($args as $key => $value)
-                $params .= '&' . urlencode($key) . '=' . urlencode($value);
+        $args['domain'] = $this->_domain;
+        $args['class'] = $this->_class;
+        $params = '';
+        foreach ($args as $key => $value)
+            $params .= '&' . urlencode($key) . '=' . urlencode($value);
 
-            $socket = $this->getConnection();
+        $socket = $this->getConnection();
 
-            $result = fwrite($socket, $cmd . $params . "\n");
-            if ($result === false)
-                throw new Exception(get_class($this) . '::doRequest write failed');
-            $line = fgets($socket);
-            if ($line === false)
-                throw new Exception(get_class($this) . '::doRequest read failed');
+        $result = fwrite($socket, $cmd . $params . "\n");
+        if ($result === false) {
+            fclose($socket);
+            throw new Exception(get_class($this) . '::doRequest write failed');
+        }
+        $line = fgets($socket);
+        if ($line === false) {
+            fclose($socket);
+            throw new Exception(get_class($this) . '::doRequest read failed');
+        }
+        $words = explode(' ', $line);
+        if ($words[0] == self::RES_SUCCESS) {
+            parse_str(trim($words[1]), $result);
+            return $result;
+        }
+        // Clean up
+        fclose($socket);
+        if (!isset($words[1]))
+            $words[1] = null;
+        switch ($words[1]) {
+            case 'unknown_key':
+                throw new Exception(get_class($this) . "::doRequest unknown_key {$args['key']}", self::ERR_UNKNOWN_KEY);
 
-            $words = explode(' ', $line);
-            if ($words[0] == self::RES_SUCCESS) {
-                parse_str(trim($words[1]), $result);
-                return $result;
-            }
-            if (!isset($words[1]))
-                $words[1] = null;
-            switch ($words[1]) {
-                case 'unknown_key':
-                    throw new Exception(get_class($this) . "::doRequest unknown_key {$args['key']}", self::ERR_UNKNOWN_KEY);
+            case 'empty_file':
+                throw new Exception(get_class($this) . "::doRequest empty_file {$args['key']}", self::ERR_EMPTY_FILE);
 
-                case 'empty_file':
-                    throw new Exception(get_class($this) . "::doRequest empty_file {$args['key']}", self::ERR_EMPTY_FILE);
+            case 'none_match':
+                throw new Exception(get_class($this) . "::doRequest none_match {$args['key']}", self::ERR_NONE_MATCH);
 
-                case 'none_match':
-                    throw new Exception(get_class($this) . "::doRequest none_match {$args['key']}", self::ERR_NONE_MATCH);
-
-                default:
-                    throw new Exception(get_class($this) . '::doRequest ' . trim(urldecode($line)), self::ERR_OTHER);
-            }
-        } catch (Exception $e) {
-            // Clean up
-            if (isset($socket))
-                fclose($socket);
-            // Recast the exception
-            throw $e;
+            default:
+                throw new Exception(get_class($this) . '::doRequest ' . trim(urldecode($line)), self::ERR_OTHER);
         }
     }
 
@@ -285,14 +282,24 @@ class MogileFS {
         if ($key === null)
             throw new Exception(get_class($this) . '::get key cannot be null');
         $paths = $this->getPaths($key);
+        $ch = curl_init();
+        if ($ch === false)
+            throw new Exception(get_class($this) . '::get curl_init failed');
+        $options = Array(
+            CURLOPT_VERBOSE => $this->_debug,
+            CURLOPT_TIMEOUT => $this->_getTimeout,
+            CURLOPT_FAILONERROR => true,
+            CURLOPT_RETURNTRANSFER => true
+        );
+        if (!curl_setopt_array($ch, $options)) {
+            curl_close($ch);
+            throw new Exception(get_class($this) . '::get curl_setopt_array failed');
+        }
         foreach ($paths as $path) {
-            $contents = '';
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_VERBOSE, $this->_debug);
-            curl_setopt($ch, CURLOPT_TIMEOUT, $this->_getTimeout);
-            curl_setopt($ch, CURLOPT_URL, $path);
-            curl_setopt($ch, CURLOPT_FAILONERROR, true);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            if (!curl_setopt($ch, CURLOPT_URL, $path)) {
+                curl_close($ch);
+                throw new Exception(get_class($this) . '::get curl_setopt failed');
+            }
             $response = curl_exec($ch);
             if ($response === false) {
                 continue; // Try next source
@@ -300,6 +307,7 @@ class MogileFS {
             curl_close($ch);
             return $response;
         }
+        curl_close($ch);
         throw new Exception(get_class($this) . "::get unable to retrieve {$key}");
     }
 
@@ -310,20 +318,24 @@ class MogileFS {
         $paths = $this->getPaths($key);
         foreach ($paths as $path) {
             $fh = fopen($path, 'r');
-            if ($fh) {
-                if (fpassthru($fh) === false)
-                    throw new Exception(get_class($this) . '::getPassthru failed');
-                fclose($fh);
-            }
-            return $success;
+            if ($fh === false)
+                continue;
+
+            $result = fpassthru($fh);
+            fclose($fh);
+            if ($result === false)
+                throw new Exception(get_class($this) . '::getPassthru failed');
+            return;
         }
         throw new Exception(get_class($this) . "::getPassthru unable to retrieve {$key}");
     }
 
     // Save a file to the MogileFS
     public function setResource($key, $fh, $length) {
-        if ($key === null)
+        if ($key === null) {
+            fclose($fh);
             throw new Exception(get_class($this) . '::setResource key cannot be null');
+        }
 
         $location = $this->doRequest(self::CMD_CREATE_OPEN, Array('key' => $key));
         $uri = $location['path'];
@@ -332,21 +344,32 @@ class MogileFS {
         $port = $parts['port'];
         $path = $parts['path'];
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_VERBOSE, $this->_debug);
-        curl_setopt($ch, CURLOPT_INFILE, $fh);
-        curl_setopt($ch, CURLOPT_INFILESIZE, $length);
-        curl_setopt($ch, CURLOPT_TIMEOUT, $this->_putTimeout);
-        curl_setopt($ch, CURLOPT_PUT, true);
-        curl_setopt($ch, CURLOPT_URL, $uri);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, Array('Expect: '));
+        $ch = curl_init($uri);
+        if ($ch === false) {
+            fclose($fh);
+            throw new Exception(get_class($this) . '::setResource curl_init failed');
+        }
+
+        $options = Array(
+            CURLOPT_VERBOSE => $this->_debug,
+            CURLOPT_INFILE => $fh,
+            CURLOPT_INFILESIZE => $length,
+            CURLOPT_TIMEOUT => $this->_putTimeout,
+            CURLOPT_PUT => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => Array('Expect: ')
+        );
+        if (!curl_setopt_array($ch, $options)) {
+            fclose($fh);
+            curl_close($ch);
+            throw new Exception(get_class($this) . '::setResource curl_setopt_array failed');
+        }
         $response = curl_exec($ch);
         fclose($fh);
         if ($response === false) {
             $error = curl_error($ch);
             curl_close($ch);
-            throw new Exception(get_class($this) . "::set {$error}");
+            throw new Exception(get_class($this) . "::setResource {$error}");
         }
         curl_close($ch);
         $this->doRequest(self::CMD_CREATE_CLOSE, Array(
@@ -365,8 +388,14 @@ class MogileFS {
         $fh = fopen('php://memory', 'rw');
         if ($fh === false)
             throw new Exception(get_class($this) . '::set failed to open memory stream');
-        fwrite($fh, $value);
-        rewind($fh);
+        if (fwrite($fh, $value) === false) {
+            fclose($fh);
+            throw new Exception(get_class($this) . '::set write failed');
+        }
+        if (!rewind($fh)) {
+            fclose($fh);
+            throw new Exception(get_class($this) . '::set rewind failed');
+        }
         return $this->setResource($key, $fh, strlen($value));
     }
 
