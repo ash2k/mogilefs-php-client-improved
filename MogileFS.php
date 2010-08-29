@@ -49,6 +49,7 @@ class MogileFS {
     protected $_trackers;
     protected $_socket;
     protected $_connectTimeout;
+    protected $_trackerTimeout;
     protected $_putTimeout;
     protected $_getTimeout;
     protected $_debug;
@@ -57,7 +58,8 @@ class MogileFS {
         $this->setDomain($domain);
         $this->setClass($class);
         $this->setTrackers($trackers);
-        $this->setConnectTimeout(3);
+        $this->setConnectTimeout(3.0);
+        $this->setTrackerTimeout(3);
         $this->setPutTimeout(10);
         $this->setGetTimeout(10);
         $this->setDebug(false);
@@ -79,7 +81,18 @@ class MogileFS {
         if ($timeout > 0)
             $this->_connectTimeout = $timeout;
         else
-            throw new Exception(get_class($this) . '::setConnectTimeout expects a positive integer');
+            throw new Exception(get_class($this) . '::setConnectTimeout expects a positive float');
+    }
+
+    public function getTrackerTimeout() {
+        return $this->_trackerTimeout;
+    }
+
+    public function setTrackerTimeout($timeout) {
+        if ($timeout > 0)
+            $this->_trackerTimeout = $timeout;
+        else
+            throw new Exception(get_class($this) . '::setTrackerTimeout expects a positive integer');
     }
 
     public function getPutTimeout() {
@@ -152,8 +165,10 @@ class MogileFS {
             $errno = null;
             $errstr = null;
             $this->_socket = fsockopen($parts['host'], $parts['port'], $errno, $errstr, $this->_connectTimeout);
-            if ($this->_socket)
+            if ($this->_socket) {
+                stream_set_timeout($this->_socket, $this->_trackerTimeout);
                 break;
+            }
         }
 
         if (!is_resource($this->_socket) || feof($this->_socket))
