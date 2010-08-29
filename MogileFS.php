@@ -252,11 +252,15 @@ class MogileFS {
     }
 
     // Get an array of paths
-    public function getPaths($key) {
+    public function getPaths($key, $pathcount = null, $noverify = false) {
         if ($key === null)
             throw new Exception(get_class($this) . '::getPaths key cannot be null');
 
-        $result = $this->doRequest(self::CMD_GET_PATHS, Array('key' => $key));
+        $args = Array('key' => $key, 'noverify' => (int) (bool) $noverify);
+        if ($pathcount) {
+            $args['pathcount'] = (int) $pathcount;
+        }
+        $result = $this->doRequest(self::CMD_GET_PATHS, $args);
         unset($result['paths']);
         return $result;
     }
