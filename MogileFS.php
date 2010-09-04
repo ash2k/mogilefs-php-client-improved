@@ -59,9 +59,9 @@ class MogileFS {
         $this->setClass($class);
         $this->setTrackers($trackers);
         $this->setConnectTimeout(3.0);
-        $this->setTrackerTimeout(3);
-        $this->setPutTimeout(10);
-        $this->setGetTimeout(10);
+        $this->setTrackerTimeout(3.0);
+        $this->setPutTimeout(10.0);
+        $this->setGetTimeout(10.0);
         $this->setDebug(false);
     }
 
@@ -92,7 +92,7 @@ class MogileFS {
         if ($timeout > 0)
             $this->_trackerTimeout = $timeout;
         else
-            throw new Exception(get_class($this) . '::setTrackerTimeout expects a positive integer');
+            throw new Exception(get_class($this) . '::setTrackerTimeout expects a positive float');
     }
 
     public function getPutTimeout() {
@@ -103,7 +103,7 @@ class MogileFS {
         if ($timeout > 0)
             $this->_putTimeout = $timeout;
         else
-            throw new Exception(get_class($this) . '::setPutTimeout expects a positive integer');
+            throw new Exception(get_class($this) . '::setPutTimeout expects a positive float');
     }
 
     public function getGetTimeout() {
@@ -114,7 +114,7 @@ class MogileFS {
         if ($timeout > 0)
             $this->_getTimeout = $timeout;
         else
-            throw new Exception(get_class($this) . '::setGetTimeout expects a positive integer');
+            throw new Exception(get_class($this) . '::setGetTimeout expects a positive float');
     }
 
     public function getTrackers() {
@@ -127,7 +127,7 @@ class MogileFS {
         elseif (is_array($trackers))
             $this->_trackers = $trackers;
         else
-            throw new Exception(get_class($this) . '::setHosts unrecognized trackers argument');
+            throw new Exception(get_class($this) . '::setTrackers unrecognized trackers argument');
     }
 
     public function getDomain() {
@@ -166,7 +166,11 @@ class MogileFS {
             $errstr = null;
             $this->_socket = fsockopen($parts['host'], $parts['port'], $errno, $errstr, $this->_connectTimeout);
             if ($this->_socket) {
-                stream_set_timeout($this->_socket, $this->_trackerTimeout);
+                stream_set_timeout(
+                        $this->_socket,
+                        floor($this->_trackerTimeout),
+                        ($this->_trackerTimeout - floor($this->_trackerTimeout)) * 1000
+                );
                 break;
             }
         }
@@ -307,7 +311,8 @@ class MogileFS {
             throw new Exception(get_class($this) . '::get curl_init failed');
         $options = Array(
             CURLOPT_VERBOSE => $this->_debug,
-            CURLOPT_TIMEOUT => $this->_getTimeout,
+            CURLOPT_CONNECTTIMEOUT_MS => $this->_connectTimeout * 1000,
+            CURLOPT_TIMEOUT_MS => $this->_getTimeout * 1000,
             CURLOPT_FAILONERROR => true,
             CURLOPT_RETURNTRANSFER => true
         );
@@ -369,7 +374,8 @@ class MogileFS {
             CURLOPT_VERBOSE => $this->_debug,
             CURLOPT_INFILE => $fh,
             CURLOPT_INFILESIZE => $length,
-            CURLOPT_TIMEOUT => $this->_putTimeout,
+            CURLOPT_CONNECTTIMEOUT_MS => $this->_connectTimeout * 1000,
+            CURLOPT_TIMEOUT_MS => $this->_putTimeout * 1000,
             CURLOPT_PUT => true,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => Array('Expect: ')
