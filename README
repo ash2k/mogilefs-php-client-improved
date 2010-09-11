@@ -1,0 +1,7 @@
+Changes summary:
+
+- timeouts code corrected/added;
+- error handling corrected/added;
+- 'pathcount' and 'noverify' arguments added to getPaths method; 
+- added codes to thrown exceptions;
+- general code cleanup.
