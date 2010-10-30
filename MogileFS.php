@@ -392,7 +392,11 @@ class MogileFS {
             curl_close($ch);
             throw new Exception(get_class($this) . "::setResource {$error}");
         }
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+        if ($httpCode != 201) { /* HTTP 201 Created */
+            throw new Exception(get_class($this) . "::setResource server returned HTTP {$httpCode} code");
+        }
         $this->doRequest(self::CMD_CREATE_CLOSE, Array(
             'key' => $key,
             'devid' => $location['devid'],
