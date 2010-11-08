@@ -305,7 +305,7 @@ class MogileFS {
     public function get($key) {
         if ($key === null)
             throw new Exception(get_class($this) . '::get key cannot be null');
-        $paths = $this->getPaths($key);
+        $paths = $this->getPaths($key, null, true);
         $ch = curl_init();
         if ($ch === false)
             throw new Exception(get_class($this) . '::get curl_init failed');
