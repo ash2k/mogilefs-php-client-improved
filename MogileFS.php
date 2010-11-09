@@ -53,6 +53,9 @@ class MogileFS {
     protected $_putTimeout;
     protected $_getTimeout;
     protected $_debug;
+    protected $_curlInfo;
+    protected $_curlError;
+    protected $_curlErrno;
 
     public function __construct($domain, $class, $trackers) {
         $this->setDomain($domain);
@@ -152,6 +155,18 @@ class MogileFS {
             throw new Exception(get_class($this) . '::setClass unrecognized class argument');
     }
 
+    public function getCurlInfo() {
+        return $this->_curlInfo;
+    }
+
+    public function getCurlError() {
+        return $this->_curlError;
+    }
+
+    public function getCurlErrno() {
+        return $this->_curlErrno;
+    }
+
     // Connect to a mogilefsd; scans through the list of daemons and tries to connect one.
     public function getConnection() {
         if ($this->_socket && is_resource($this->_socket) && !feof($this->_socket))
@@ -227,6 +242,9 @@ class MogileFS {
 
     // Return a list of domains
     public function getDomains() {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         $res = $this->doRequest(self::CMD_GET_DOMAINS);
 
         $domains = Array();
@@ -241,6 +259,9 @@ class MogileFS {
     }
 
     public function exists($key) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::exists key cannot be null');
 
@@ -257,6 +278,9 @@ class MogileFS {
 
     // Get an array of paths
     public function getPaths($key, $pathcount = null, $noverify = false) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::getPaths key cannot be null');
 
@@ -271,6 +295,9 @@ class MogileFS {
 
     // Delete a file from system
     public function delete($key) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::delete key cannot be null');
         $this->doRequest(self::CMD_DELETE, Array('key' => $key));
@@ -278,6 +305,9 @@ class MogileFS {
 
     // Rename a file
     public function rename($from, $to) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($from === null)
             throw new Exception(get_class($this) . '::rename from key cannot be null');
         elseif ($to === null)
@@ -287,6 +317,9 @@ class MogileFS {
 
     // Rename a file
     public function listKeys($prefix = null, $lastKey = null, $limit = null) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         try {
             return $this->doRequest(self::CMD_LIST_KEYS, Array(
                 'prefix' => $prefix,
@@ -303,6 +336,9 @@ class MogileFS {
 
     // Get a file from mogstored and return it as a string
     public function get($key) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::get key cannot be null');
         $paths = $this->getPaths($key, null, true);
@@ -326,6 +362,9 @@ class MogileFS {
                 throw new Exception(get_class($this) . '::get curl_setopt failed');
             }
             $response = curl_exec($ch);
+            $this->_curlInfo = curl_getinfo($ch);
+            $this->_curlError = curl_error($ch);
+            $this->_curlErrno = curl_errno($ch);
             if ($response === false) {
                 continue; // Try next source
             }
@@ -337,7 +376,10 @@ class MogileFS {
     }
 
     // Get a file from mogstored and send it directly to stdout by way of fpassthru()
-    function getPassthru($key) {
+    public function getPassthru($key) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::getPassthru key cannot be null');
         $paths = $this->getPaths($key);
@@ -357,14 +399,16 @@ class MogileFS {
 
     // Save a file to the MogileFS
     public function setResource($key, $fh, $length) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null) {
             fclose($fh);
             throw new Exception(get_class($this) . '::setResource key cannot be null');
         }
 
         $location = $this->doRequest(self::CMD_CREATE_OPEN, Array('key' => $key));
-        $uri = $location['path'];
-        $ch = curl_init($uri);
+        $ch = curl_init($location['path']);
         if ($ch === false) {
             fclose($fh);
             throw new Exception(get_class($this) . '::setResource curl_init failed');
@@ -387,25 +431,26 @@ class MogileFS {
         }
         $response = curl_exec($ch);
         fclose($fh);
-        if ($response === false) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            throw new Exception(get_class($this) . "::setResource {$error}");
-        }
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $this->_curlInfo = curl_getinfo($ch);
+        $this->_curlError = curl_error($ch);
+        $this->_curlErrno = curl_errno($ch);
         curl_close($ch);
-        if ($httpCode != 201) { /* HTTP 201 Created */
-            throw new Exception(get_class($this) . "::setResource server returned HTTP {$httpCode} code");
-        }
+        if ($response === false)
+            throw new Exception(get_class($this) . "::setResource {$this->_curlError}");
+        if ($this->_curlInfo['http_code'] != 201) // Not HTTP 201 Created
+            throw new Exception(get_class($this) . "::setResource server returned HTTP {$this->_curlInfo['http_code']} code");
         $this->doRequest(self::CMD_CREATE_CLOSE, Array(
             'key' => $key,
             'devid' => $location['devid'],
             'fid' => $location['fid'],
-            'path' => urldecode($uri)
+            'path' => urldecode($location['path'])
         ));
     }
 
     public function set($key, $value) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::set key cannot be null');
         $fh = fopen('php://memory', 'rw');
@@ -423,6 +468,9 @@ class MogileFS {
     }
 
     public function setFile($key, $filename) {
+        $this->_curlInfo = null;
+        $this->_curlError = null;
+        $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::setFile key cannot be null');
         $fh = fopen($filename, 'r');
