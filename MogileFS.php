@@ -221,8 +221,9 @@ class MogileFS {
             parse_str(trim($words[1]), $result);
             return $result;
         }
-        // Clean up
-        fclose($socket);
+        if ($words[0] != self::RES_ERROR)
+            // Something really bad happened - lets close the connection
+            fclose($socket);
         if (!isset($words[1]))
             $words[1] = null;
         switch ($words[1]) {
