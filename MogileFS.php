@@ -387,11 +387,17 @@ class MogileFS {
             throw new Exception(get_class($this) . '::getPassthru key cannot be null');
 
         $paths = $this->getPaths($key);
+        $context = stream_context_create(array('http' => array('timeout' => $this->_connectTimeout)));
         foreach ($paths as $path) {
-            $fh = fopen($path, 'r');
+            $fh = fopen($path, 'rb', false, $context);
             if ($fh === false)
                 continue;
 
+            stream_set_timeout(
+                        $fh,
+                        floor($this->_getTimeout),
+                        ($this->_getTimeout - floor($this->_getTimeout)) * 1000
+            );
             $result = fpassthru($fh);
             fclose($fh);
             if ($result === false)
