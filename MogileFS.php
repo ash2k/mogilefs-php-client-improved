@@ -468,10 +468,13 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::setFile key cannot be null');
+        $filesize = filesize($filename);
+        if ($filesize === false)
+            throw new Exception(get_class($this) . '::setFile failed to get file size');
         $fh = fopen($filename, 'r');
         if ($fh === false)
             throw new Exception(get_class($this) . "::setFile failed to open path {$filename}");
-        $this->setResource($key, $fh, filesize($filename));
+        $this->setResource($key, $fh, $filesize);
     }
 
 }
