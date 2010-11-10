@@ -168,7 +168,7 @@ class MogileFS {
     }
 
     // Connect to a mogilefsd; scans through the list of daemons and tries to connect one.
-    public function getConnection() {
+    protected function getConnection() {
         if ($this->_socket && is_resource($this->_socket) && !feof($this->_socket))
             return $this->_socket;
 
