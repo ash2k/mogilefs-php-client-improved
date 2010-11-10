@@ -259,14 +259,9 @@ class MogileFS {
     }
 
     public function exists($key) {
-        $this->_curlInfo = null;
-        $this->_curlError = null;
-        $this->_curlErrno = 0;
-        if ($key === null)
-            throw new Exception(get_class($this) . '::exists key cannot be null');
-
         try {
-            $this->doRequest(self::CMD_GET_PATHS, Array('key' => $key));
+            // Get 1 path maximum without verification
+            $this->getPaths($key, 1, true);
             return true;
         } catch (Exception $e) {
             if ($e->getCode() == self::ERR_UNKNOWN_KEY) {
