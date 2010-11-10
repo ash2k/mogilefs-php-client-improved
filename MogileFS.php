@@ -172,28 +172,27 @@ class MogileFS {
         if ($this->_socket && is_resource($this->_socket) && !feof($this->_socket))
             return $this->_socket;
 
-        foreach ($this->_trackers as $host) {
-            $parts = parse_url($host);
-            if (!isset($parts['port']))
-                $parts['port'] = self::DEFAULT_PORT;
-
+        foreach ($this->_trackers as $tracker) {
+            $parts = parse_url($tracker);
             $errno = null;
             $errstr = null;
-            $this->_socket = fsockopen($parts['host'], $parts['port'], $errno, $errstr, $this->_connectTimeout);
+            $this->_socket = fsockopen(
+                            $parts['host'],
+                            isset($parts['port']) ? $parts['port'] : self::DEFAULT_PORT,
+                            $errno,
+                            $errstr,
+                            $this->_connectTimeout
+            );
             if ($this->_socket) {
                 stream_set_timeout(
                         $this->_socket,
                         floor($this->_trackerTimeout),
                         ($this->_trackerTimeout - floor($this->_trackerTimeout)) * 1000
                 );
-                break;
+                return $this->_socket;
             }
         }
-
-        if (!is_resource($this->_socket) || feof($this->_socket))
-            throw new Exception(get_class($this) . '::getConnection failed to obtain connection');
-        else
-            return $this->_socket;
+        throw new Exception(get_class($this) . '::getConnection failed to obtain connection');
     }
 
     // Send a request to mogilefsd and parse the result.
