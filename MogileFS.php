@@ -224,8 +224,10 @@ class MogileFS {
         if ($words[0] != self::RES_ERROR)
             // Something really bad happened - lets close the connection
             fclose($socket);
+
         if (!isset($words[1]))
             $words[1] = null;
+
         switch ($words[1]) {
             case 'unknown_key':
                 throw new Exception(get_class($this) . "::doRequest unknown_key {$args['key']}", self::ERR_UNKNOWN_KEY);
@@ -254,6 +256,7 @@ class MogileFS {
             $classes = Array();
             for ($j = 1; $j <= $res[$dom . 'classes']; $j++)
                 $classes[$res[$dom . 'class' . $j . 'name']] = $res[$dom . 'class' . $j . 'mindevcount'];
+
             $domains[] = Array('name' => $res[$dom], 'classes' => $classes);
         }
         return $domains;
@@ -265,9 +268,9 @@ class MogileFS {
             $this->getPaths($key, 1, true);
             return true;
         } catch (Exception $e) {
-            if ($e->getCode() == self::ERR_UNKNOWN_KEY) {
+            if ($e->getCode() == self::ERR_UNKNOWN_KEY)
                 return false;
-            }
+
             throw $e;
         }
     }
@@ -281,9 +284,9 @@ class MogileFS {
             throw new Exception(get_class($this) . '::getPaths key cannot be null');
 
         $args = Array('key' => $key, 'noverify' => (int) (bool) $noverify);
-        if ($pathcount) {
+        if ($pathcount)
             $args['pathcount'] = (int) $pathcount;
-        }
+
         $result = $this->doRequest(self::CMD_GET_PATHS, $args);
         unset($result['paths']);
         return $result;
@@ -296,6 +299,7 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::delete key cannot be null');
+
         $this->doRequest(self::CMD_DELETE, Array('key' => $key));
     }
 
@@ -306,8 +310,10 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($from === null)
             throw new Exception(get_class($this) . '::rename from key cannot be null');
-        elseif ($to === null)
+
+        if ($to === null)
             throw new Exception(get_class($this) . '::rename to key cannot be null');
+
         $this->doRequest(self::CMD_RENAME, Array('from_key' => $from, 'to_key' => $to));
     }
 
@@ -325,8 +331,8 @@ class MogileFS {
         } catch (Exception $e) {
             if ($e->getCode() == self::ERR_NONE_MATCH)
                 return Array();
-            else
-                throw $e;
+
+            throw $e;
         }
     }
 
@@ -337,10 +343,12 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::get key cannot be null');
+
         $paths = $this->getPaths($key, null, true);
         $ch = curl_init();
         if ($ch === false)
             throw new Exception(get_class($this) . '::get curl_init failed');
+
         $options = Array(
             CURLOPT_VERBOSE => $this->_debug,
             CURLOPT_CONNECTTIMEOUT_MS => $this->_connectTimeout * 1000,
@@ -361,9 +369,9 @@ class MogileFS {
             $this->_curlInfo = curl_getinfo($ch);
             $this->_curlError = curl_error($ch);
             $this->_curlErrno = curl_errno($ch);
-            if ($response === false) {
+            if ($response === false)
                 continue; // Try next source
-            }
+
             curl_close($ch);
             return $response;
         }
@@ -378,6 +386,7 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::getPassthru key cannot be null');
+
         $paths = $this->getPaths($key);
         foreach ($paths as $path) {
             $fh = fopen($path, 'r');
@@ -388,6 +397,7 @@ class MogileFS {
             fclose($fh);
             if ($result === false)
                 throw new Exception(get_class($this) . '::getPassthru failed');
+
             return;
         }
         throw new Exception(get_class($this) . "::getPassthru unable to retrieve {$key}");
@@ -402,14 +412,12 @@ class MogileFS {
             fclose($fh);
             throw new Exception(get_class($this) . '::setResource key cannot be null');
         }
-
         $location = $this->doRequest(self::CMD_CREATE_OPEN, Array('key' => $key));
         $ch = curl_init($location['path']);
         if ($ch === false) {
             fclose($fh);
             throw new Exception(get_class($this) . '::setResource curl_init failed');
         }
-
         $options = Array(
             CURLOPT_VERBOSE => $this->_debug,
             CURLOPT_INFILE => $fh,
@@ -433,8 +441,10 @@ class MogileFS {
         curl_close($ch);
         if ($response === false)
             throw new Exception(get_class($this) . "::setResource {$this->_curlError}");
+
         if ($this->_curlInfo['http_code'] != 201) // Not HTTP 201 Created
             throw new Exception(get_class($this) . "::setResource server returned HTTP {$this->_curlInfo['http_code']} code");
+
         $this->doRequest(self::CMD_CREATE_CLOSE, Array(
             'key' => $key,
             'devid' => $location['devid'],
@@ -449,9 +459,11 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::set key cannot be null');
+
         $fh = fopen('php://memory', 'rw');
         if ($fh === false)
             throw new Exception(get_class($this) . '::set failed to open memory stream');
+
         if (fwrite($fh, $value) === false) {
             fclose($fh);
             throw new Exception(get_class($this) . '::set write failed');
@@ -469,12 +481,15 @@ class MogileFS {
         $this->_curlErrno = 0;
         if ($key === null)
             throw new Exception(get_class($this) . '::setFile key cannot be null');
+
         $filesize = filesize($filename);
         if ($filesize === false)
-            throw new Exception(get_class($this) . '::setFile failed to get file size');
+            throw new Exception(get_class($this) . "::setFile failed to get file size of {$filename}");
+
         $fh = fopen($filename, 'r');
         if ($fh === false)
             throw new Exception(get_class($this) . "::setFile failed to open path {$filename}");
+
         $this->setResource($key, $fh, $filesize);
     }
 
@@ -483,7 +498,7 @@ class MogileFS {
 /*
   // Usage Example:
   $mfs = new MogileFS('socialverse', 'assets', 'tcp://127.0.0.1');
-  //$mfs->setDebug(10);
+  //$mfs->setDebug(true);
   $start = microtime(true);
   $mfs->set('test123',  microtime(true));
   printf("EXISTS: %d\n", $mfs->exists('test123'));
