@@ -207,12 +207,12 @@ class MogileFS {
 
         $result = fwrite($socket, $cmd . $params . "\n");
         if ($result === false) {
-            fclose($socket);
+            $this->close();
             throw new Exception(get_class($this) . '::doRequest write failed');
         }
         $line = fgets($socket);
         if ($line === false) {
-            fclose($socket);
+            $this->close();
             throw new Exception(get_class($this) . '::doRequest read failed');
         }
         $words = explode(' ', $line);
@@ -222,7 +222,7 @@ class MogileFS {
         }
         if ($words[0] != self::RES_ERROR)
             // Something really bad happened - lets close the connection
-            fclose($socket);
+            $this->close();
 
         if (!isset($words[1]))
             $words[1] = null;
@@ -498,6 +498,12 @@ class MogileFS {
         $this->setResource($key, $fh, $filesize);
     }
 
+    public function close() {
+        if ($this->_socket) {
+            fclose($this->_socket);
+            $this->_socket = null;
+        }
+    }
 }
 
 /*
