@@ -125,7 +125,7 @@ class MogileFS {
     }
 
     public function setTrackers($trackers) {
-        if (is_scalar($trackers))
+        if (is_string($trackers))
             $this->_trackers = Array($trackers);
         elseif (is_array($trackers))
             $this->_trackers = $trackers;
@@ -138,7 +138,7 @@ class MogileFS {
     }
 
     public function setDomain($domain) {
-        if (is_scalar($domain))
+        if (is_string($domain))
             $this->_domain = $domain;
         else
             throw new Exception(get_class($this) . '::setDomain unrecognized domain argument');
@@ -149,7 +149,7 @@ class MogileFS {
     }
 
     public function setClass($class) {
-        if (is_scalar($class))
+        if (is_string($class))
             $this->_class = $class;
         else
             throw new Exception(get_class($this) . '::setClass unrecognized class argument');
