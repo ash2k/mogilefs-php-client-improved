@@ -640,7 +640,7 @@ class MogileFS {
             'key' => $key,
             'devid' => $location['devid'],
             'fid' => $location['fid'],
-            'path' => urldecode($location['path'])
+            'path' => $location['path']
         ));
     }
 
