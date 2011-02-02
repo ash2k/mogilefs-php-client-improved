@@ -1,7 +1,43 @@
-Changes summary:
+MogileFS.php - Class for accessing the Mogile File System
+Copyright (C) 2007 Interactive Path, Inc.
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+File Authors:
+  Erik Osterman <eosterman@interactivepath.com>
+  Mikhail Mazursky <ash2kk AT gmail>
+
+Thanks to the MogileFS mailing list and the creator of the MediaWiki
+MogileFS client.
+
+
+Usage Example:
+$mfs = new MogileFS('socialverse', 'assets', 'tcp://127.0.0.1');
+//$mfs->setDebug(true);
+$start = microtime(true);
+$mfs->set('test123',  microtime(true));
+printf("EXISTS: %d\n", $mfs->exists('test123'));
+print "GET: [" . $mfs->get('test123') . "]\n";
+$mfs->delete('test123');
+$stop = microtime(true);
+printf("%.4f\n", $stop - $start);
+
+Changes summary:
 - timeouts code corrected/added;
 - error handling corrected/added;
 - 'pathcount' and 'noverify' arguments added to getPaths method; 
 - added codes to thrown exceptions;
-- general code cleanup.
+- general code cleanup;
+- PHP docs for methods.
